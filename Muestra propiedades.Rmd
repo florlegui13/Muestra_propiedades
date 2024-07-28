@@ -1,0 +1,740 @@
+---
+title: "Analisis de Barrios CABA"
+output: 
+  html_document:
+    toc: true
+    toc_depthe: 11
+    toc_float: true
+    collapsed: true
+    smooth_scroll: true
+    theme: journal
+    highlight: kate
+    df_print: paged
+    code_folding: show
+
+---
+# Base de datos
+```{r}
+library(openxlsx)
+datos_tp1 <- read.xlsx("C:/Users/Flor/Documents/Maestria/Analisis_inteligente_de_datos/datos_tp1.xlsx")
+datos_tp1
+
+## Mutar y limpiar datos
+
+
+library(dplyr)
+library(openxlsx)
+
+datos_f <- datos_tp1 %>%
+  filter(
+    l1 == "Argentina" & 
+    l2 == "Capital Federal" & 
+    property_type == "PH" & 
+    operation_type == "Venta"
+  ) %>%
+  mutate(
+    bedrooms = ifelse(is.na(bedrooms), rooms + 1, bedrooms),
+    bathrooms = ifelse(is.na(bathrooms), 1, bathrooms),
+    l3 = ifelse(is.na(l3), l4, l3)
+  ) %>%
+  filter(
+    !is.na(lat) & !is.na(lon) & 
+    !is.na(surface_covered) & !is.na(surface_total) & 
+    !is.na(l3) & !is.na(bathrooms) & 
+    !is.na(bedrooms) & !is.na(rooms) & !is.na(price)
+  )
+
+head(datos_f)
+
+datos_f <- datos_f %>%
+  mutate(
+    bedrooms = ifelse(is.na(bedrooms), rooms + 1, bedrooms),
+    bathrooms = ifelse(is.na(bathrooms), 1, bathrooms)
+  ) %>%
+  filter(
+    !is.na(lat) & !is.na(lon) &
+    !is.na(surface_covered) & !is.na(surface_total)
+  ) %>%
+  mutate(l3 = ifelse(is.na(l3), l4, l3)) %>%
+  filter(!is.na(l3)) %>%
+  filter(
+    !is.na(bathrooms) & !is.na(bedrooms) & 
+    !is.na(rooms) & !is.na(price)
+  )
+
+
+
+```
+# Muestreo
+
+```{r}
+
+set.seed(531)
+muestra_properaty <- datos_f %>% sample_n(size = 500)
+
+head(muestra_properaty)
+
+write.xlsx(muestra_properaty, file = "muestra_properaty.xlsx")
+```
+
+
+```
+```
+# Medidad descriptivas
+
+```{r}
+
+
+library(dplyr)
+library(e1071)
+
+str(muestra_properaty)
+
+muestra_properaty_num <- muestra_properaty[, sapply(muestra_properaty, is.numeric)]
+
+columnas_a_excluir <- c("id", "luminoso", "reciclado", "expensas", "espectacular", "quincho", "terraza", "escalera", "galeria")
+muestra_properaty_num <- muestra_properaty_num[, !names(muestra_properaty_num) %in% columnas_a_excluir]
+
+summary(muestra_properaty_num)
+
+minimos <- sapply(muestra_properaty_num, min, na.rm = TRUE)
+maximos <- sapply(muestra_properaty_num, max, na.rm = TRUE)
+medianas <- sapply(muestra_properaty_num, median, na.rm = TRUE)
+medias <- sapply(muestra_properaty_num, mean, na.rm = TRUE)
+cuartiles_1 <- sapply(muestra_properaty_num, quantile, probs = 0.25, na.rm = TRUE)
+cuartiles_3 <- sapply(muestra_properaty_num, quantile, probs = 0.75, na.rm = TRUE)
+cantidad_datos <- colSums(!is.na(muestra_properaty_num))
+varianzas <- sapply(muestra_properaty_num, var, na.rm = TRUE)
+desvios_estandar <- sapply(muestra_properaty_num, sd, na.rm = TRUE)
+coef_variacion <- desvios_estandar / medias * 100
+rangos_intercuartilicos <- sapply(muestra_properaty_num, IQR, na.rm = TRUE)
+mad <- sapply(muestra_properaty_num, mad, na.rm = TRUE)
+asimetrías <- sapply(muestra_properaty_num, skewness, na.rm = TRUE)
+curtosis <- sapply(muestra_properaty_num, kurtosis, na.rm = TRUE)
+
+medidas_descriptivas <- data.frame(
+  Mínimo = minimos,
+  Máximo = maximos,
+  Mediana = medianas,
+  Media = medias,
+  Cuartil_1 = cuartiles_1,
+  Cuartil_3 = cuartiles_3,
+  Cantidad_de_datos = cantidad_datos,
+  Varianza = varianzas,
+  Desvío_Estándar = desvios_estandar,
+  Coeficiente_de_Variación = coef_variacion,
+  Rango_Intercuartílico = rangos_intercuartilicos,
+  MAD = mad,
+  Asimetría = asimetrías,
+  Curtosis = curtosis
+)
+
+head(medidas_descriptivas)
+
+```
+# Graficos
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+
+# Gráfico de dispersión de latitud y longitud
+ggplot(muestra_properaty, aes(x = lon, y = lat, color = l3)) + 
+  geom_point(size = 1) + 
+  labs(title = "Latitud y Longitud", x = "Longitude", y = "Latitude") + 
+  theme_minimal()
+
+# Crear un boxplot para la columna 'rooms'
+boxplot(muestra_properaty$rooms, col = "skyblue", main = "Boxplot de Rooms", ylab = "Cantidad")
+
+# Crear un boxplot para la columna 'bedrooms'
+boxplot(muestra_properaty$bedrooms, col = "pink", main = "Boxplot de Bedrooms", ylab = "Cantidad")
+
+# Crear un boxplot para la columna 'bathrooms'
+boxplot(muestra_properaty$bathrooms, col = "brown", main = "Boxplot de Bathrooms", ylab = "Cantidad")
+
+# Crear un boxplot para la columna 'price'
+boxplot(muestra_properaty$price, col = "green", main = "Boxplot de Price", ylab = "Cantidad")
+
+# Gráfico de dispersión de superficie cubierta vs. superficie total
+plot(muestra_properaty$surface_covered, muestra_properaty$surface_total, 
+     xlab = "Superficie cubierta", ylab = "Superficie total", 
+     main = "Scatter Plot de Superficie Cubierta vs. Superficie Total", 
+     xlim = c(20, 500), ylim = c(20, 500))
+
+# Boxplot de precio por barrio
+boxplot(price ~ l3, data = muestra_properaty, 
+        main = "Precio por Barrio (Boxplot)", 
+        xlab = "Barrio", ylab = "Precio", 
+        col = rainbow(length(unique(muestra_properaty$l3))))
+
+# Gráficos de barras apiladas para variables dummy (primera parte)
+ggplot(muestra_properaty) + 
+  geom_bar(aes(x = factor("quincho"), fill = factor(quincho)), position = "stack") + 
+  geom_bar(aes(x = factor("terraza"), fill = factor(terraza)), position = "stack") + 
+  geom_bar(aes(x = factor("escalera"), fill = factor(escalera)), position = "stack") + 
+  geom_bar(aes(x = factor("galeria"), fill = factor(galeria)), position = "stack") + 
+  labs(title = "Distribución de Variables Categoricas", x = "Variables Dummy", y = "Frecuencia") + 
+  scale_fill_manual(values = c("darkgrey", "lightblue"))
+
+# Gráficos de barras apiladas para variables dummy (segunda parte)
+ggplot(muestra_properaty) + 
+  geom_bar(aes(x = factor("luminoso"), fill = factor(luminoso)), position = "stack") + 
+  geom_bar(aes(x = factor("reciclado"), fill = factor(reciclado)), position = "stack") + 
+  geom_bar(aes(x = factor("expensas"), fill = factor(expensas)), position = "stack") + 
+  geom_bar(aes(x = factor("espectacular"), fill = factor(espectacular)), position = "stack") + 
+  labs(title = "Distribución de Variables Categoricas", x = "Variables Dummy", y = "Frecuencia") + 
+  scale_fill_manual(values = c("darkgrey", "lightblue"))
+```
+# Tabla de Frecuencias
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(openxlsx)
+
+df_categoricas <- muestra_properaty[c("reciclado", "expensas", "luminoso", "espectacular", "quincho", "terraza", "escalera", "galeria")] 
+df_barrios <- muestra_properaty["l3"]
+
+# Mostrar las primeras filas de las columnas categóricas
+head(df_categoricas)
+
+# Definición de la función para calcular frecuencias y porcentajes
+calcular_frecuencias_porcentaje <- function(columna) { 
+  tabla <- table(columna) 
+  porcentaje <- prop.table(tabla) * 100 
+  tabla_frecuencia <- as.data.frame(tabla) 
+  tabla_frecuencia$Porcentaje <- porcentaje 
+  return(tabla_frecuencia) 
+}
+
+# Aplicación de la función a las columnas categóricas
+tablas_frecuencias_porcentaje <- lapply(df_categoricas, calcular_frecuencias_porcentaje) 
+names(tablas_frecuencias_porcentaje) <- c("reciclado", "expensas", "luminoso", "espectacular", "quincho", "terraza", "escalera", "galeria")
+
+# Imprimir las tablas de frecuencias y porcentajes
+print(tablas_frecuencias_porcentaje)
+
+# Cálculo de la tabla de frecuencias y porcentajes para 'l3'
+tabla_frecuencia_porcentaje_l3 <- calcular_frecuencias_porcentaje(df_barrios$l3)
+
+# Imprimir la tabla de frecuencias y porcentajes para 'l3'
+print(tabla_frecuencia_porcentaje_l3)
+
+# Unir todas las tablas de frecuencias en una tabla completa
+tabla_completa <- do.call(rbind, tablas_frecuencias_porcentaje)
+tabla_completa$Variable <- rep(names(tablas_frecuencias_porcentaje), sapply(tablas_frecuencias_porcentaje, nrow))
+tabla_completa <- tabla_completa[, c("Variable", "columna", "Freq", "Porcentaje")]
+
+# Imprimir la tabla completa
+print(tabla_completa)
+
+# Función para graficar cada tabla de frecuencias
+graficar_tabla_frecuencias <- function(tabla, nombre_variable) { 
+  # Convertir la columna "columna" en un factor para asegurar el orden correcto en el gráfico
+  tabla$columna <- factor(tabla$columna, levels = unique(tabla$columna))
+  
+  barplot(tabla$Freq, names.arg = tabla$columna, main = paste("Tabla de Frecuencias para", nombre_variable), 
+          xlab = "Variable", ylab = "Frecuencia", col = "skyblue", ylim = c(0, max(tabla$Freq) * 1.2))
+  
+  text(x = seq_along(tabla$Freq), y = tabla$Freq, labels = paste0(tabla$Porcentaje, "%"), pos = 3, cex = 0.8, col = "black")
+}
+
+# Graficar cada tabla de frecuencias
+for (nombre_variable in names(tablas_frecuencias_porcentaje)) {
+  tabla <- tablas_frecuencias_porcentaje[[nombre_variable]]
+  print(nombre_variable)
+  graficar_tabla_frecuencias(tabla, nombre_variable)
+}
+
+# Graficar la tabla de frecuencias y porcentajes para 'l3' 
+ggplot(tabla_frecuencia_porcentaje_l3, aes(x = factor(columna), y = Freq, fill = factor(columna))) + 
+  geom_bar(stat = "identity") + 
+  geom_text(aes(label = paste0(Freq, " (", round(Porcentaje, 1), "%)")), position = position_stack(vjust = 0.5), size = 3.5) + 
+  labs(title = "Frecuencias y Porcentajes para 'l3'", x = "Valor", y = "Frecuencia") + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(size = 8, angle = 90, hjust = 1))
+```
+# Clustering
+
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(openxlsx)
+library(factoextra)
+
+# Selección de las variables adecuadas para el clustering
+df_cl_ger <- muestra_properaty[c("price", "surface_covered", "lat", "lon")]
+
+# Verificación de valores faltantes
+colSums(is.na(df_cl_ger))
+
+# Eliminación de filas con valores faltantes
+df_cl_ger <- na.omit(df_cl_ger)
+
+# Cálculo de la matriz de distancias usando la distancia euclidiana
+mat_dist <- dist(x = df_cl_ger[, -1], method = "euclidean")
+
+# Aplicación de varios métodos de clustering jerárquico
+hc_complete <- hclust(d = mat_dist, method = "complete") 
+hc_average <- hclust(d = mat_dist, method = "average") 
+hc_single <- hclust(d = mat_dist, method = "single") 
+hc_ward <- hclust(d = mat_dist, method = "ward.D2")
+
+# Cálculo de las correlaciones cofenéticas
+cophenetic_complete <- cophenetic(hc_complete)
+cophenetic_average <- cophenetic(hc_average)
+cophenetic_single <- cophenetic(hc_single)
+cophenetic_ward <- cophenetic(hc_ward)
+
+cor_complete <- cor(as.dist(mat_dist), as.dist(cophenetic_complete)) 
+cor_average <- cor(as.dist(mat_dist), as.dist(cophenetic_average)) 
+cor_single <- cor(as.dist(mat_dist), as.dist(cophenetic_single)) 
+cor_ward <- cor(as.dist(mat_dist), as.dist(cophenetic_ward))
+
+# Imprimir las correlaciones cofenéticas
+print(cor_complete) 
+print(cor_average) 
+print(cor_single) 
+print(cor_ward)
+
+# Visualización del dendrograma con el método de Ward
+plot(hc_ward, main = "Dendrograma - Método Ward", xlab = "", sub = "", ylab = "Altura")
+rect.hclust(hc_ward, k = 5, border = "red")
+
+# Selección de variables numéricas para el clustering
+df_cl_ger2 <- muestra_properaty[c("price", "surface_covered", "lat", "lon")]
+
+# Escalamiento de las variables
+df_cl_ger2 <- scale(df_cl_ger2)
+
+# Clustering jerárquico completo
+hc_completo <- hclust(dist(df_cl_ger2, method = "euclidean"), method = "complete")
+
+# Método del codo (WSS)
+fviz_nbclust(df_cl_ger2, FUNcluster = hcut, method = "wss")
+
+# Método de la silueta
+fviz_nbclust(df_cl_ger2, FUNcluster = hcut, method = "silhouette")
+
+# Método del gap statistic
+fviz_nbclust(df_cl_ger2, FUNcluster = hcut, method = "gap_stat")
+
+# Visualización del dendrograma con 4 clusters
+fviz_dend(hc_completo, k = 4, cex = 0.6) + geom_hline(yintercept = 6.7, linetype = "dashed")
+
+# Visualización de los clusters en el espacio de las variables
+clusters <- cutree(hc_completo, k = 4)
+fviz_cluster(list(data = df_cl_ger2, cluster = clusters), 
+             ellipse.type = "convex", 
+             repel = TRUE) + 
+  theme_bw()
+
+```
+# Análisis Clustering
+
+```
+Las variables seleccionadas para el análisis de clustering se eligieron debido a que:
+
+Precio: El precio de una propiedad es una medida fundamental y altamente relevante en el mercado inmobiliario. Puede ayudar a identificar diferentes segmentos de propiedades en función de su valor monetario.
+Superficie cubierta: La superficie cubierta de una propiedad es una medida importante que refleja el área construida y habitable. Se eligió esta variable en lugar de la superficie total, ya que proporciona una visión más precisa de la utilidad de la propiedad y se supone que está altamente relacionada con la variable de habitaciones.
+Latitud y Longitud: La ubicación geográfica de una propiedad es una consideración crucial para su valor y su atractivo. La latitud y la longitud proporcionan coordenadas precisas que pueden utilizarse para agrupar propiedades según su ubicación geográfica.
+La evaluación de los métodos de clustering jerárquico revela que el método de enlace promedio (hc_average) exhibe la mayor correlación entre las distancias originales y las distancias cofenéticas (cor_average = 0.95). Esto sugiere una representación más precisa de las relaciones de distancia entre las observaciones. Sin embargo, el método de Ward (hc_ward) muestra una correlación más débil (cor_ward = 0.75), indicando una representación menos fiel de estas relaciones.
+
+La discrepancia en cuanto al número óptimo de clusters, con algunas estimaciones sugiriendo 4 clusters y otras solo 1 o 2, destaca la necesidad de una limpieza más exhaustiva de los datos. Esto sugiere que los resultados pueden estar influenciados por la calidad de los datos, y resalta la importancia de considerar cuidadosamente los métodos de clustering en conjunto con una limpieza adecuada de los datos para obtener conclusiones más robustas.
+
+En la visualización del dendrograma y los clusters resultantes, se observa que las dos primeras dimensiones explican una parte significativa de la variabilidad en los datos (Dim 1: 46.7%, Dim 2: 26.5%). Esto indica que el clustering basado en estas variables capta una proporción considerable de la información relevante sobre las propiedades, permitiendo identificar patrones y segmentaciones útiles en el mercado inmobiliario.
+```
+# K-MEANS 
+```{r}
+
+library(ggplot2)
+library(dplyr)
+library(readxl)
+library(openxlsx)
+library(factoextra)
+
+# Verificación de valores faltantes
+colSums(is.na(df_cl_ger))
+
+# Eliminación de filas con valores faltantes
+df_cl_ger <- na.omit(df_cl_ger)
+
+# Escalamiento de las variables
+df_cl_ger2 <- scale(df_cl_ger)
+
+# K-Means
+
+# Cálculo del número óptimo de clusters usando el método del codo (WSS)
+fviz_nbclust(df_cl_ger2, FUNcluster = kmeans, method = "wss") + 
+  geom_vline(xintercept = 3, linetype = 2) + 
+  labs(title = "Método del Codo para determinar el número óptimo de clusters")
+
+# Cálculo del número óptimo de clusters usando el método del gap statistic
+fviz_nbclust(df_cl_ger2, FUNcluster = kmeans, method = "gap_stat") + 
+  labs(title = "Gap Statistic para determinar el número óptimo de clusters")
+
+# Aplicación del algoritmo K-means con 3 clusters
+set.seed(246) 
+km_clusters <- kmeans(df_cl_ger2, centers = 3, nstart = 25)
+
+# Mostrar los nombres de los componentes del resultado de K-means
+names(km_clusters)
+
+# Visualización de los clusters
+fviz_cluster(km_clusters, data = df_cl_ger2, show.clust.cent = TRUE, 
+             ellipse.type = "euclid", star.plot = TRUE, repel = TRUE) + 
+  theme_bw() + 
+  theme(legend.position = "none") + 
+  labs(title = "Visualización de los Clusters obtenidos con K-means")
+
+# Análisis de componentes principales (PCA)
+pca <- prcomp(df_cl_ger2, scale = TRUE)
+
+# Visualización de la variabilidad explicada por cada componente principal
+fviz_eig(pca)
+
+# Biplot de PCA
+fviz_pca_biplot(pca, geom = "point", 
+                habillage = km_clusters$cluster, 
+                addEllipses = TRUE, ellipse.level = 0.95) + 
+  theme_bw() + 
+  labs(title = "Biplot del PCA con clusters K-means")
+
+
+```
+# Analisis K-means
+
+El análisis de clustering K-means realizado en este conjunto de datos ha arrojado resultados interesantes, aunque también ha resaltado ciertos desafíos relacionados con la limpieza y la consistencia de los datos.El método del codo sugirió que el número óptimo de clusters es 3. Esto se determinó observando la gráfica de la suma de las distancias cuadradas dentro de los clusters (WSS), donde se observa una disminución significativa en la variabilidad hasta alcanzar 3 clusters, después de
+lo cual la mejora se estabiliza. Contrariamente, el método del gap statistic indicó que el número óptimo de clusters podría ser 1. Esto sugiere que no hay una estructura clara de múltiples clusters en los datos o que la variabilidad dentro de los clusters no es suficiente para justificar más de un cluster según este método. Al graficar los clusters, se observa que los grupos no están claramente separados. Los clusters azul y rojo tienden a estar más cerca uno del otro y muestran
+una considerable unión entre ellos, lo que indica una superposición significativa. El grupo verde, por otro lado, está más expandido, mostrando una mayor dispersión de las observaciones dentro del cluster.
+Además, se detectó un dato que es un posible outlier, ubicado bastante lejos del centro de los otros datos en el grupo verde. En el gráfico de PCA, se observa que dos de los clusters  están muy cercanos y casi superpuestos. Esta proximidad sugiere que las observaciones en estos dos clusters tienen características muy similares en las dimensiones principales.La superposición de clusters indica que el algoritmo K-means puede no estar capturando adecuadamente las diferencias entre estos dos grupos. Esto puede ser debido a la naturaleza de los datos o a la selección de variables.Los puntos dentro del cluster verde están más dispersos en comparación con los puntos dentro de los otrod. Esta mayor dispersión indica una mayor variabilidad en las características de las observaciones dentro del tercer cluster.La dispersión dentro del cluster puede ser un signo de que el cluster verde está capturando un grupo de observaciones con características diversas o que el número de clusters seleccionado no es óptimo para segmentar adecuadamente este grupo.Se observa un punto que está fuera de todos los clusters, lo que sugiere la presencia de un outlier. Este punto fuera de los clusters principales indica que esta observación tiene características muy diferentes de la mayoría de las observaciones en el conjunto de datos.
+La presencia de outliers puede afectar el rendimiento del algoritmo de clustering y la interpretación de los clusters. Es importante investigar más a fondo este punto para entender si es un error de datos o una observación genuinamente diferente.
+La superposición de los clusters sugiere que puede ser útil revisar las variables seleccionadas para el análisis. Considerar la inclusión de variables adicionales o la transformación de las existentes podría ayudar a mejorar la separación entre los clusters.Identificar y tratar los outliers puede mejorar la calidad del clustering. Técnicas como la eliminación de outliers, la normalización de datos o el uso de métodos robustos al clustering pueden ser consideraciones importantes.
+
+```
+# PCA
+
+```{r}
+# PCA
+library(corrplot)
+library(ggplot2)
+library(ggfortify)
+## Eliminar columnas no deseadas
+
+muestra_properaty <- muestra_properaty[, !names(muestra_properaty) %in% c("l4", "l5", "l6", "price_period")]
+df_num <- muestra_properaty_num[, !names(muestra_properaty_num) %in% c("l4", "l5", "l6", "price_period")]
+
+sum(is.na(muestra_properaty))
+any(duplicated(muestra_properaty))
+
+m_cor <- cor(df_num)
+corrplot(m_cor, method = "circle", type = "upper", diag = FALSE)
+
+m_cov <- round(cov(df_num), 2)
+traza_cov <- sum(diag(m_cov))
+
+m_cov_AA <- eigen(m_cov)
+autovalores_cov <- m_cov_AA$values
+print(round(autovalores_cov, 2))
+
+datos_estandarizados <- data.frame(scale(df_num))
+round(cov(datos_estandarizados), 2)
+
+m_cor <- round(cor(df_num), 2)
+print(m_cor)
+
+traza_cor <- sum(diag(m_cor))
+print(traza_cor)
+
+desc_mat_cor <- eigen(m_cor)
+autovalores_cor <- desc_mat_cor$values
+print(round(autovalores_cor, 2))
+
+pca <- prcomp(df_num, scale = TRUE)
+
+names(pca)
+
+carga1 <- data.frame(X = 1:length(df_num), primeracarga = data.frame(pca$rotation)[,1])
+carga2 <- data.frame(X = 1:length(df_num), segundacarga = data.frame(pca$rotation)[,2])
+cbind(carga1, carga2)
+
+ggplot(carga1, aes(x = colnames(df_num), y = primeracarga)) +
+  geom_bar(stat = "identity", position = "dodge", fill = "royalblue", width = 0.5) +
+  xlab('Variables') +
+  ylab('Primera carga') +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  
+prop_varianza <- pca$sdev^2 / sum(pca$sdev^2)
+print(prop_varianza)
+
+prop_varianza_acum <- cumsum(prop_varianza)
+print(prop_varianza_acum)
+
+autoplot(pca, data = df_num, loadings = TRUE, loadings.colour = 'black', loadings.label = TRUE, loadings.label.size = 5)
+
+autoplot(pca, x = 2, y = 3, data = df_num, loadings = TRUE, loadings.colour = 'blue', loadings.label = TRUE, loadings.label.size = 4)
+
+if (!requireNamespace("ggfortify", quietly = TRUE)) {
+  install.packages("ggfortify")
+}
+library(ggfortify)
+
+```
+# Analisis PCA
+```
+El primer autovalor es significativamente mayor que los demás, lo que indica que la primera componente principal explica una cantidad considerable de varianza en los datos. Variables como "rooms", "bedrooms", "bathrooms", "surface_covered" y "price" tienen una contribución significativa en esta componente. 
+Rooms y Bedrooms: Ambas variables tienen una alta correlación positiva. Esto sugiere una, relación fuerte entre el número de habitaciones y el número de dormitorios en las propiedades. Rooms y Bathrooms: También muestran una correlación positiva significativa, lo que indica que las propiedades con más habitaciones tienden a tener más baños. 
+Surface Total y Surface Covered: Estas variables están moderadamente correlacionadas, lo que sugiere que la superficie total de una propiedad está relacionada con la superficie cubierta. 
+Surface Total y Lon: Aunque la correlación es relativamente baja , la covarianza negativa sugiere una relación inversa. Esto podría significar que a medida que aumenta la longitud (lon) en una dirección, la superficie total (surface_total) puede disminuir ligeramente. 
+Price y Bedrooms/Rooms: Hay correlaciones moderadas positivas entre el precio de la propiedad y el número de dormitorios y el número de habitaciones. Esto indica que las propiedades con más dormitorios o habitaciones tienden a tener precios más altos. 
+En la grafica, la presencia de una flecha larga hacia arriba para la variable "Lon" y una flecha más pequeña hacia abajo para "surface_total" en el biplot sugiere una relación entre estas dos variables en el espacio de las componentes
+principales. Esto significa que hay una asociación positiva entre la variable "Lon" y alguna de las componentes principales, lo que implica que a medida que "Lon" aumenta, también lo hace alguna característica representativa de esa componente principal. 
+Por otro lado, la flecha hacia abajo para "surface_total" indica una asociación negativa con otra característica relevante de las componentes principales. Además, la presencia de posibles outliers en el biplot puede ser indicativa de observaciones que se desvían significativamente del patrón general de los datos. Estos outliers pueden ser puntos de interés para investigar más a fondo, ya que pueden representar casos especiales o errores en la recolección de datos que podrían afectar el análisis. La distribución de los datos en la coordenada (0,0) del biplot también es importante. Los datos que se agrupan alrededor de este punto podrían indicar que las variables están altamente correlacionadas entre sí o que no contribuyen significativamente a ninguna de las componentes principales. Esto puede sugerir la presencia de redundancia en las variables o la necesidad de una selección más cuidadosa de las características para el análisis.
+
+# PCA Robusto
+
+```{r}
+library(corrplot)
+library(ggplot2)
+library(ggfortify)
+library(FactoMineR)
+library(factoextra)
+library(ggpubr)
+library(MASS)
+
+muestra_properaty <- muestra_properaty[, !names(muestra_properaty) %in% c("l4", "l5", "l6", "price_period")]
+df_num <- muestra_properaty_num[, !names(muestra_properaty_num) %in% c("l4", "l5", "l6", "price_period")]
+
+sum(is.na(muestra_properaty))
+any(duplicated(muestra_properaty))
+
+df_subset <- subset(muestra_properaty, select = c(rooms, surface_total, surface_covered, price))
+head(df_subset)
+
+print(class(df_subset$rooms))
+df_subset$rooms <- as.numeric(as.character(df_subset$rooms))
+print(class(df_subset$rooms))
+
+cat("Cantidad de valores faltantes por columna:\n")
+print(colSums(is.na(df_subset)))
+
+df_subset <- na.omit(df_subset)
+
+cov_mcd <- cov.mcd(df_subset)
+pca_mcd <- princomp(df_subset, cor = TRUE, scores = TRUE, covmat = cov_mcd)
+pca_mve <- princomp(df_subset, cor = TRUE, scores = TRUE, covmat = MASS::cov.mve(df_subset))
+
+
+summary(pca_mve)
+
+p1 <- fviz_eig(pca_mve, ncp = 5, addlabels = TRUE, main = "MVE")
+p2 <- fviz_eig(pca_mcd, ncp = 5, addlabels = TRUE, main = "MCD")
+ggarrange(p1, p2, nrow = 1, ncol = 2)
+
+screeplot(pca_mve, type = "l", npcs = 7)
+abline(h = 1, col = "red", lty = 5)
+legend("topright", legend = c("Eigenvalue = 1"), col = c("red"), lty = 5, cex = 0.6)
+
+num.pca.subset <- PCA(df_subset, scale.unit = TRUE, ncp = 4, graph = FALSE)
+str(num.pca.subset)
+
+fviz_pca_biplot(num.pca.subset, col.var = "red", label = "var") + 
+  scale_color_brewer(palette = "Dark2") + 
+  theme_minimal()
+
+p3 <- fviz_eig(num.pca.subset, ncp = 5, addlabels = TRUE, main = "No robusto", barfill = "#69b3a2", barcolor = "#69b3a2")
+ggarrange(p2, p3, nrow = 1, ncol = 2)
+
+prop_varianza_mve <- pca_mve$sdev^2 / sum(pca_mve$sdev^2)
+prop_varianza_mve_acum <- cumsum(prop_varianza_mve)
+print(prop_varianza_mve)
+print(prop_varianza_mve_acum)
+
+prop_varianza_mcd <- pca_mcd$sdev^2 / sum(pca_mcd$sdev^2)
+prop_varianza_mcd_acum <- cumsum(prop_varianza_mcd)
+print(prop_varianza_mcd)
+print(prop_varianza_mcd_acum)
+
+num_eigenvalues <- nrow(num.pca.subset$eig)
+print(num_eigenvalues)
+
+if (num_eigenvalues < 5) {
+  indices <- 1:num_eigenvalues
+} else {
+  indices <- 1:5
+}
+
+prop_varianza_nr <- num.pca.subset$eig[indices, 2] / sum(num.pca.subset$eig[, 2])
+prop_varianza_nr_acum <- cumsum(prop_varianza_nr)
+
+print(prop_varianza_nr)
+print(prop_varianza_nr_acum)
+
+
+```
+
+# Analisis ACP robusto y no robusto
+
+En el primer componente principal (1ª dimensión), vemos que la
+proporción de varianza explicada es del 78.5% para el ACP robusto y del 63.2% para el ACP no robusto. Esto sugiere que el ACP robusto explica una mayor proporción de la variabilidad total de los datos en comparación con el ACP no robusto en esta dimensión.
+
+En cuanto al segundo componente principal (2ª dimensión), observamos que la proporción de varianza explicada es del 11.9% para el ACP robusto y del 24.2% para el ACP no robusto. Aquí, el ACP no robusto explica una proporción significativamente mayor de la variabilidad en comparación con el ACP robusto.
+
+Estas diferencias en la proporción de varianza explicada entre los dos métodos pueden deberse a la sensibilidad del ACP no robusto a los valores atípicos en los datos, lo que puede resultar en una mayor variabilidad explicada en algunas dimensiones.
+
+En resumen, el ACP robusto (MCD) parece ofrecer una explicación más consistente de la variabilidad en la primera dimensión, mientras que el ACP no robusto muestra una mayor variabilidad en la segunda dimensión, posiblemente debido a la presencia de valores atípicos en los datos.
+
+# CA y MCA
+
+```{r}
+
+library("FactoMineR")
+library("factoextra")
+library(ca)
+
+muestra_properaty$rooms <- as.factor(muestra_properaty$rooms)
+muestra_properaty$bathrooms <- as.factor(muestra_properaty$bathrooms)
+
+contingency_table <- table(muestra_properaty$rooms, muestra_properaty$bathrooms)
+
+print(contingency_table)
+
+
+res.ca <- CA(contingency_table, graph = FALSE)
+
+summary(res.ca)
+
+chi_sq_test <- chisq.test(contingency_table)
+
+chi_sq_test
+
+fviz_ca_biplot(res.ca, repel = TRUE)
+
+fviz_ca_row(res.ca, col.row = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+fviz_ca_col(res.ca, col.col = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+eigenvalues <- res.ca$eig
+
+print(eigenvalues)
+
+fviz_screeplot(res.ca, addlabels = TRUE, ylim = c(0, 50))
+
+#Surface_total y price
+
+muestra_properaty$surface_total_cat <- cut(muestra_properaty$surface_total, 
+                                           breaks = quantile(muestra_properaty$surface_total, probs = seq(0, 1, 0.25), na.rm = TRUE), 
+                                           include.lowest = TRUE, 
+                                           labels = c("Low", "Medium-Low", "Medium-High", "High"))
+
+muestra_properaty$price_cat <- cut(muestra_properaty$price, 
+                                   breaks = quantile(muestra_properaty$price, probs = seq(0, 1, 0.25), na.rm = TRUE), 
+                                   include.lowest = TRUE, 
+                                   labels = c("Low", "Medium-Low", "Medium-High", "High"))
+
+contingency_table <- table(muestra_properaty$surface_total_cat, muestra_properaty$price_cat)
+
+head(contingency_table)
+
+res.ca <- CA(contingency_table, graph = FALSE)
+
+summary(res.ca)
+
+chi_sq_test <- chisq.test(contingency_table)
+
+chi_sq_test
+
+fviz_ca_biplot(res.ca, repel = TRUE)
+
+fviz_ca_row(res.ca, col.row = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+fviz_ca_col(res.ca, col.col = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+eigenvalues <- res.ca$eig
+
+print(eigenvalues)
+
+fviz_screeplot(res.ca, addlabels = TRUE, ylim = c(0, 50))
+
+#MCA
+library(FactoMineR)
+library(factoextra)
+
+muestra_properaty$surface_total_cat <- as.factor(muestra_properaty$surface_total_cat)
+muestra_properaty$price_cat <- as.factor(muestra_properaty$price_cat)
+muestra_properaty$rooms <- as.factor(muestra_properaty$rooms)
+muestra_properaty$bathrooms <- as.factor(muestra_properaty$bathrooms)
+
+contingency_table_clean <- ftable(muestra_properaty$surface_total_cat, 
+                                  muestra_properaty$price_cat, 
+                                  muestra_properaty$rooms, 
+                                  muestra_properaty$bathrooms)
+
+print(contingency_table_clean)
+
+
+# Convertir la tabla de contingencia a un dataframe adecuado para el MCA
+contingency_df <- as.data.frame.matrix(contingency_table_clean)
+
+# Verificar las dimensiones y el contenido del dataframe antes de eliminar filas y columnas vacías
+cat("Dimensiones antes de eliminar filas y columnas vacías:", dim(contingency_df), "\n")
+print(head(contingency_df))
+
+# Eliminar filas con sumas iguales a 0
+contingency_df <- contingency_df[rowSums(contingency_df) > 0, ]
+
+# Eliminar columnas con sumas iguales a 0
+contingency_df <- contingency_df[, colSums(contingency_df) > 0]
+
+# Verificar las dimensiones y el contenido del dataframe después de eliminar filas y columnas vacías
+cat("Dimensiones después de eliminar filas y columnas vacías:", dim(contingency_df), "\n")
+print(head(contingency_df))
+
+# Asegurarnos de que la tabla de contingencia no esté vacía
+if (nrow(contingency_df) == 0 || ncol(contingency_df) == 0) {
+  stop("La tabla de contingencia está vacía después de eliminar filas y/o columnas vacías.")
+}
+
+# Transformar las filas y columnas categóricas en factores
+contingency_df <- as.data.frame(lapply(contingency_df, as.factor))
+
+# Realizar el MCA con los datos limpios
+library(FactoMineR)
+library(factoextra)
+
+res.mca_clean <- MCA(contingency_df, graph = FALSE)
+
+# Resumen del MCA
+summary(res.mca_clean)
+
+# Visualización del biplot del MCA
+fviz_mca_biplot(res.mca_clean, repel = TRUE)
+
+# Visualización de las filas (surface_total_cat)
+fviz_mca_ind(res.mca_clean, col.ind = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+# Visualización de las columnas (price_cat)
+fviz_mca_var(res.mca_clean, col.var = "cos2", gradient.cols = c("#00AFBB", "#E7B800", "#FC4E07"), repel = TRUE)
+
+# Obtener y visualizar los valores propios
+eigenvalues_clean <- res.mca_clean$eig
+print(eigenvalues_clean)
+
+# Gráfico de Screeplot
+fviz_screeplot(res.mca_clean, addlabels = TRUE, ylim = c(0, 50))
+
+```
+#Analisis CA y MCA
+
+La prueba de Chi-cuadrado muestra una estadística de prueba de 1317.4 con 66 grados de libertad, lo que da como resultado un valor de p muy bajo. Esto indicaria una asociación significativa entre el número de habitaciones y el número de baños en los datos, como ya se vio anteriormente en la matriz de correlaciones. La Dimensión 1 como la Dimensión 2 son igualmente importantes y explican una cantidad significativa de la variabilidad en los datos.
+En los graficos, la concentración de todos los grupos en la coordenada (0,0) sugiere una homogeneidad o similitud entre las categorías en términos de sus perfiles o propiedades.
+Con respecto a surface_total y price, la prueba de chi-cuadrado estadísticamente significativo, lo que sugiere que existe una asociación significativa entre la superficie total y el precio en los datos.
+La dimensión 1 y la dimensión 2 explican aproximadamente el 78.06% y el 20.50% de la variabilidad respectivamente. En conjunto, estas dos dimensiones explican casi el 98.56% de la variabilidad en los datos.
+En el biplot, las etiquetas están cercanas entre sí, lo que indica que esas categorías tienen una relación cercana o son similares en términos de las dimensiones principales del análisis.En este caso, ignifica que las observaciones con bajo precio tienden a tener también una superficie cubierta baja. Esto podría indicar una asociación entre ambas variables en el conjunto de datos.
+Con respecto al MCA,en el biplot generado, se observa una marcada proximidad de la mayoría de los datos a los ejes principales X e Y. Esta agrupación cercana sugiere una baja dispersión en el conjunto de datos, lo que indica una relación significativa entre las variables representadas. Sin embargo, también se identifican algunos puntos dispersos, alejados de la agrupación principal. Estos puntos podrían ser considerados como outliers, su presencia merece una atención especial, ya que pueden influir en los resultados del análisis si no se manejan adecuadamente.La baja variabilidad explicada por las dimensiones 1 y 2 en el análisis puede tener implicaciones significativas en la interpretación de los datos. Esta limitación en la explicación de la variabilidad puede dificultar la identificación de patrones claros o la comprensión completa de la estructura subyacente de los datos. Como resultado, el biplot resultante puede no proporcionar una representación completa de las relaciones entre las variables y las observaciones, lo que a su vez puede limitar la capacidad para realizar inferencias significativas sobre el conjunto de datos.
+
